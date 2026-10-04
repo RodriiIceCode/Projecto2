@@ -1,0 +1,9 @@
+=== ESTADÍSTICAS DE JUGADOR: Rodri1 ===
+Partidas Jugadas: 0
+Partidas Ganadas: 0
+Partidas Perdidas: 0
+Plantas Destruidas: 0
+Zombis Invocados: 0
+Cerebros Gastados: 0
+Mejor Tiempo Victoria (s): N/A
+Podadoras Activadas: 0
