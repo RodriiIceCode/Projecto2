@@ -5,8 +5,10 @@ import modelos.archivosbinarios.GestorPartidas;
 import modelos.dominio.Dificultad;
 import modelos.dominio.EstadoPartida;
 import modelos.dominio.GestorEstadisticas;
-import modelos.dominio.Planta;
-import modelos.dominio.Zombi;
+import modelos.entidades.plantas.Planta;
+import modelos.entidades.plantas.FabricaPlantas;
+import modelos.entidades.zombis.Zombi;
+import modelos.entidades.zombis.FabricaZombis;
 import modelos.estructura.ArregloDinamico;
 import vista.juego.VentanaJardin;
 
@@ -90,7 +92,8 @@ public class ControladorJardin {
             for (int c = 0; c < columnas; c++) {
                 String tipo = matrizTexto[f][c];
                 if (!tipo.equalsIgnoreCase("VACIO")) {
-                    matrizPlantas[f][c] = new Planta(tipo, obtenerVidaInicialPlanta(tipo), obtenerAtaqueInicialPlanta(tipo), f, c);
+                    // USO DE FÁBRICA DE PLANTAS
+                    matrizPlantas[f][c] = FabricaPlantas.crearPlanta(tipo, f, c);
                 }
             }
         }
@@ -114,8 +117,8 @@ public class ControladorJardin {
                         cerebrosActuales += 25;
                     }
 
-                    procesarAtaquePlantas();
-                    procesarAvanceYAtaqueZombis();
+                    // AHORA EL MOTOR ES POLIMÓRFICO
+                    actualizarTurnoEntidades();
 
                     SwingUtilities.invokeLater(() -> {
                         vista.actualizarTiempo(tiempoRestante);
@@ -128,52 +131,36 @@ public class ControladorJardin {
         });
     }
 
-    private void procesarAtaquePlantas() {
+    // NUEVO MÉTODO QUE REEMPLAZA A procesarAtaquePlantas() Y procesarAvanceYAtaqueZombis()
+    private void actualizarTurnoEntidades() {
+        // 1. Ejecutar acciones de Plantas
         for (int f = 0; f < filas; f++) {
             for (int c = 0; c < columnas; c++) {
                 Planta planta = matrizPlantas[f][c];
-                if (planta != null && planta.estaViva() && planta.obtenerAtaque() > 0) {
-                    Zombi objetivo = obtenerPrimerZombiEnCarril(f, c);
-                    if (objetivo != null) {
-                        objetivo.recibirDano(planta.obtenerAtaque());
+                if (planta != null) {
+                    if (planta.estaViva()) {
+                        // Cada planta sabe cómo atacar (línea recta, explosión, etc.)
+                        planta.ejecutarAccion(listaZombis);
+                    } else {
+                        // Limpiar planta muerta
+                        matrizPlantas[f][c] = null;
                     }
                 }
             }
         }
-    }
 
-    private void procesarAvanceYAtaqueZombis() {
-        for (int i = 0; i < listaZombis.obtenerTamano(); i++) {
+        // 2. Ejecutar acciones de Zombis (iteramos de atrás hacia adelante por posibles eliminaciones)
+        for (int i = listaZombis.obtenerTamano() - 1; i >= 0; i--) {
             Zombi zombi = listaZombis.obtener(i);
-            if (!zombi.estaViva()) continue;
 
-            int f = zombi.obtenerFila();
-            int c = zombi.obtenerColumna();
-
-            if (matrizPlantas[f][c] != null && matrizPlantas[f][c].estaViva()) {
-                matrizPlantas[f][c].recibirDano(zombi.obtenerAtaque());
-                if (!matrizPlantas[f][c].estaViva()) {
-                    matrizPlantas[f][c] = null;
-                }
+            if (zombi.estaViva()) {
+                // Cada zombi sabe cómo moverse, saltar o comer
+                zombi.ejecutarAccion(matrizPlantas, listaZombis, columnas);
             } else {
-                if (contadorSegundos % 2 == 0) {
-                    zombi.establecerPosicion(f, c - 1);
-                }
+                // Eliminar zombi muerto
+                listaZombis.eliminarEn(i);
             }
         }
-    }
-
-    private Zombi obtenerPrimerZombiEnCarril(int fila, int columnaMinima) {
-        Zombi cercano = null;
-        for (int i = 0; i < listaZombis.obtenerTamano(); i++) {
-            Zombi z = listaZombis.obtener(i);
-            if (z.estaViva() && z.obtenerFila() == fila && z.obtenerColumna() >= columnaMinima) {
-                if (cercano == null || z.obtenerColumna() < cercano.obtenerColumna()) {
-                    cercano = z;
-                }
-            }
-        }
-        return cercano;
     }
 
     private void redibujarTablero() {
@@ -226,9 +213,10 @@ public class ControladorJardin {
     }
 
     private void inicializarEventos() {
-        vista.agregarListenerZombiBasico(e -> seleccionarZombi("Zombi Común", 50));
-        vista.agregarListenerZombiCono(e -> seleccionarZombi("Zombi Cono", 100));
-        vista.agregarListenerZombiCubeta(e -> seleccionarZombi("Zombi Cubeta", 150));
+        // ACTUALIZADOS los Strings para que coincidan con la FabricaZombis
+        vista.agregarListenerZombiBasico(e -> seleccionarZombi("ZOMBI_BASICO", 50));
+        vista.agregarListenerZombiCono(e -> seleccionarZombi("ZOMBI_CARACONO", 100));
+        vista.agregarListenerZombiCubeta(e -> seleccionarZombi("ZOMBI_DEPORTISTA", 150)); // Cambié cubeta por deportista (que vale 150)
 
         vista.agregarListenerPausaGuardar(e -> procesarPausaGuardar());
         vista.agregarListenerRendirse(e -> procesarRendirse());
@@ -257,21 +245,26 @@ public class ControladorJardin {
             return;
         }
 
-        int costo = obtenerCostoZombi(tipoZombiSeleccionado);
+        // USO DE FÁBRICA DE ZOMBIS
+        Zombi nuevoZombi = FabricaZombis.crearZombi(tipoZombiSeleccionado, fila, columna);
 
-        if (cerebrosActuales >= costo) {
-            cerebrosActuales -= costo;
-            zombisInvocadosPartida++;
-            cerebrosGastadosPartida += costo;
+        if (nuevoZombi != null) {
+            int costo = nuevoZombi.obtenerCostoCerebros();
 
-            vista.actualizarCerebros(cerebrosActuales);
+            if (cerebrosActuales >= costo) {
+                cerebrosActuales -= costo;
+                zombisInvocadosPartida++;
+                cerebrosGastadosPartida += costo;
 
-            Zombi nuevoZombi = new Zombi(tipoZombiSeleccionado, obtenerVidaInicialZombi(tipoZombiSeleccionado), 15, costo, fila, columna);
-            listaZombis.agregar(nuevoZombi);
+                vista.actualizarCerebros(cerebrosActuales);
+                listaZombis.agregar(nuevoZombi);
 
-            tipoZombiSeleccionado = null;
-            vista.actualizarZombiSeleccionadoTexto("Ninguno");
-            redibujarTablero();
+                tipoZombiSeleccionado = null;
+                vista.actualizarZombiSeleccionadoTexto("Ninguno");
+                redibujarTablero();
+            } else {
+                vista.mostrarMensaje("Cerebros insuficientes (" + costo + " requeridos).");
+            }
         }
     }
 
@@ -319,40 +312,5 @@ public class ControladorJardin {
     private void procesarRendirse() {
         detenerJuego();
         vista.dispose();
-    }
-
-    private int obtenerCostoZombi(String tipo) {
-        switch (tipo) {
-            case "Zombi Cono": return 100;
-            case "Zombi Cubeta": return 150;
-            default: return 50;
-        }
-    }
-
-    private int obtenerVidaInicialZombi(String tipo) {
-        switch (tipo) {
-            case "Zombi Cono": return 250;
-            case "Zombi Cubeta": return 500;
-            default: return 100;
-        }
-    }
-
-    private int obtenerVidaInicialPlanta(String tipo) {
-        switch (tipo.toUpperCase()) {
-            case "NUEZ": return 400;
-            case "PINCHOHIERBA": return 200;
-            case "CARRONIVORA": return 150;
-            default: return 100;
-        }
-    }
-
-    private int obtenerAtaqueInicialPlanta(String tipo) {
-        switch (tipo.toUpperCase()) {
-            case "LANZAGUISANTES": return 20;
-            case "HIELAGUISANTES": return 20;
-            case "CARRONIVORA": return 40;
-            case "PATATAPUM": return 100;
-            default: return 0;
-        }
     }
 }

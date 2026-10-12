@@ -1,5 +1,7 @@
 package modelos.dominio;
 
+import modelos.entidades.plantas.Planta;
+import modelos.entidades.zombis.Zombi;
 import modelos.estructura.ArregloDinamico;
 import java.io.Serializable;
 

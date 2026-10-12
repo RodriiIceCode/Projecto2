@@ -1,5 +1,5 @@
-Partidas Jugadas: 2
-Partidas Ganadas: 2
-Partidas Perdidas: 0
-Zombis Invocados: 6
-Cerebros Gastados: 600
+Partidas Jugadas: 4
+Partidas Ganadas: 3
+Partidas Perdidas: 1
+Zombis Invocados: 20
+Cerebros Gastados: 2350

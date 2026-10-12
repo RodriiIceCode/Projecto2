@@ -1,4 +1,4 @@
-package modelos.dominio;
+package modelos.entidades;
 
 import java.io.Serializable;
 
